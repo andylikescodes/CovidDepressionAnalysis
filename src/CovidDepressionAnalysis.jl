@@ -1,5 +1,9 @@
 module CovidDepressionAnalysis
 
-# Write your package code here.
+using DataFrames
+# include packages
+include("data_processing.jl")
+
+export f
 
 end

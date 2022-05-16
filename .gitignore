@@ -1,3 +1,7 @@
 /Manifest.toml
 
 data/
+
+output/
+
+*.code-workspace

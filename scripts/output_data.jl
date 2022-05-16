@@ -6,7 +6,17 @@ using CovidDepressionAnalysis
 using CSV
 
 # Define helper functions
-function process_target_waves(data, target_waves, selected_variables)
+function process_target_waves()
+    # Load Data
+    data = CSV.read("data/data_all_impute.csv", DataFrame)
+
+    # Processing for wave6, 8, 10, 12, 14, 16
+    target_waves = [6, 8, 12, 14, 16]
+
+    # Variables selected
+    selected_variables = [DEMOGRAPHICS; PSYCHOLOGICAL; EXTERNAL; QUALITY; EXTRAS]
+
+    # Extract data
     w1 = rename!(extract_wave(data, 1, selected_variables), VARNAME_MAPPING)
     for w in target_waves
         waveName = "w"*string(w)
@@ -16,12 +26,5 @@ function process_target_waves(data, target_waves, selected_variables)
     end
 end
 
-# Load Data
-data = CSV.read("data/data_all_impute.csv", DataFrame)
-
-# Variables selected
-selected_variables = [DEMOGRAPHICS; PSYCHOLOGICAL; EXTERNAL; QUALITY; EXTRAS]
-
-# Processing for wave6, 8, 10, 12, 14, 16
-process_target_waves(data, [6, 8, 12, 14, 16], selected_variables)
+process_target_waves()
 

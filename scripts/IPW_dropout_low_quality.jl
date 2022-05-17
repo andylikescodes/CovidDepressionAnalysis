@@ -5,6 +5,7 @@ using CovidDepressionAnalysis
 using CSV
 using Counterfactuals
 using Plots
+using InvertedIndices
 
 function IPW_dropout_low_quality(w_data_path, save_path)
     println("Processing")
@@ -40,7 +41,12 @@ function IPW_dropout_low_quality(w_data_path, save_path)
     # Depression score adjusted for low quality and dropouts
     combined[!, :Depression_adj] = combined[!, :Depression_this] .* (1 ./ combined[!, :total_w])
 
-    selected = combined[(combined[!, :Depression_adj] .!==missing) .& (combined[!, :low_quality_this] .== 0), :]
+    selected = combined[(combined[!, :Depression_adj] .!==missing) .& (combined[!, :low_quality_this] .== 0), Not(r"_w1")]
+
+    # Clean up the variable names
+    original_name = names(selected)
+    new_name = replace.(original_name, "_this" => "") 
+    rename!(selected, Dict(zip(original_name, new_name)))
 
     # Save data
     CSV.write(save_path, selected)

@@ -16,6 +16,11 @@ function process_target_waves()
     external_data = CSV.read("data/externalMeasures_county.csv", DataFrame)
     external_subset = external_data[external_data[!, "wave_day"] .== "start_date", :]
     total_data = leftjoin(data, external_subset, on=["PROLIFIC_PID", "wave"])
+    
+    state_census = CSV.read("data/NST-EST2021-alldata.csv", DataFrame)
+    state_census[!, :state] = lowercase.(filter.(isascii, state_census[!, :NAME]))
+
+    total_data = leftjoin(total_data, state_census, on=:state)
 
     # Processing for wave6, 8, 10, 12, 14, 16
     target_waves = [1, 6, 8, 10, 12, 14, 16]

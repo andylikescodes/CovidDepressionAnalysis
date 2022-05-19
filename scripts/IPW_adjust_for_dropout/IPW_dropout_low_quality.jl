@@ -14,7 +14,7 @@ function IPW_dropout_low_quality(w_data_path, save_path)
     w_data = CSV.read(w_data_path, DataFrame)
 
     # First IP weighting adjust for low quality dropouts
-    adjustments = ["Income", "Gender", "Age", "Education", "Race_AA", "Race_W"]
+    adjustments = ["Income", "Gender", "Age", "Education", "Race_AA", "Race_W", "Mandatory_SAH"]
     square_terms = ["Income", "Age", "Education"]
     treatment = "low_quality"
     target = "Depression"
@@ -28,7 +28,7 @@ function IPW_dropout_low_quality(w_data_path, save_path)
 
     combined[!, :dropout] = combined[!, target*"_this"].===missing
 
-    adjustments = ["Income_w1", "Gender_w1", "Age_w1", "Education_w1", "Race_AA_w1", "Race_W_w1"]
+    adjustments = ["Income_w1", "Gender_w1", "Age_w1", "Education_w1", "Race_AA_w1", "Race_W_w1", "Mandatory_SAH_w1"]
     square_terms = ["Income_w1", "Age_w1", "Education_w1"]
     treatment = "dropout"
     target = "Depression"

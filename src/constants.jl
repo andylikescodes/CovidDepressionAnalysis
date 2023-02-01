@@ -18,3 +18,5 @@ tmp1 = vcat(DEMOGRAPHICS, PSYCHOLOGICAL, EXTERNAL, QUALITY)
 tmp2 = vcat(DEMOGRAPHICS_OUTPUT_NAME, PSYCHOLOGICAL_OUTPUT_NAME, EXTERNAL_OUTPUT_NAME, QUALITY_OUTPUT_NAME)
 const VARNAME_MAPPING = Dict(zip(tmp1, tmp2))
 
+# Tetrad variable names output
+const TETRAD_VARS = ["Gender", "Education", "Income", "Political_Views", "Age", "Race_AA", "Race_W", "Depression", "Stress", "Anxiety", "Fear_COVID", "Emotional_Support", "Loneliness", "Mandatory_SAH", "cvd_cases_7d_avg", "cvd_deaths_7d_avg"]

@@ -26,3 +26,8 @@ function interpolate_age_race(data)
     end 
 end
 
+# Process data for Tetrad
+function fur_tetrad(data)
+    data[!, TETRAD_VARS]
+end
+

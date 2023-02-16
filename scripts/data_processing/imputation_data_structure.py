@@ -92,8 +92,7 @@ class Structure:
         """
         Update the subject data after imputation
         """
-        for i in range(fm.shape[1]):
-            self.data[subject_index,:,:] = fm
+        self.data[subject_index,:,:] = fm
     
     def index_missing_var(self, wave_data):
         """

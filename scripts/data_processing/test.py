@@ -92,5 +92,5 @@ class TestClass:
         test_df = pd.read_csv('../../output/v3_python/raw.csv')
         # Focus on just two waves for testing
         test_structure = Structure(test_df)
-        test_structure.run_imputation(k1=10, k2=10, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01)
+        test_structure.run_imputation(k1=10, k2=5, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=500)
         assert np.isnan(test_structure.data).any() == False

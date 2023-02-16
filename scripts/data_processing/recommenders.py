@@ -46,7 +46,7 @@ class MatrixFactorization():
             self.sgd()
             mse = self.mse()
             training_process.append((i, mse))
-            if (i+1) % 10 == 0:
+            if (i+1) % 100 == 0:
                 print("Iteration: %d ; error = %.4f" % (i+1, mse))
 
         return training_process

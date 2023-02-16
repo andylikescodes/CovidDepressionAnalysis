@@ -75,3 +75,22 @@ class TestClass:
         imputed_wave_data = test_structure.impute_wave(new_wave_data, k=5, iter=1000)
         assert imputed_wave_data.shape == new_wave_data.shape
         assert np.isnan(imputed_wave_data).any() == False
+        
+    def test_impute_subject(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['CVDID']==2) | (test_df['CVDID']==3), :]
+        test_structure = Structure(test_df)
+        subject_data = test_structure.pull_by_subject(1)
+                
+        imputed_subject_data = test_structure.impute_subject(subject_data, k=5, iter=1000)
+        assert imputed_subject_data.shape == subject_data.shape
+        assert imputed_subject_data.shape[1] == 16
+        assert np.isnan(imputed_subject_data).any() == False
+
+    def test_impute_full(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_structure = Structure(test_df)
+        test_structure.run_imputation(k1=10, k2=10, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01)
+        assert np.isnan(test_structure.data).any() == False

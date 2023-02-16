@@ -44,7 +44,11 @@ class Structure:
         """
         m,n = wave_data.shape
         missing_indexes = self.index_missing_var(wave_data)
+        print('The columns that are missing for this wave: ')
         print(missing_indexes)
+        for i in missing_indexes:
+            print(self.meta['columns'][i])
+            
         all_indexes = [x for x in range(n)]
         all_indexes = np.delete(all_indexes, missing_indexes)
         print(all_indexes)
@@ -63,7 +67,33 @@ class Structure:
         training = imputer.train()
         fm = imputer.full_matrix()
         return fm
+    
+    def impute_subject(self, subject_data, k, alpha=0.01, beta=0.01, iter=200):
+        """
+        Impute the missing data for the specific subject.
+        """
+        for i in range(subject_data.shape[1]):
+            subject_data[:, i] = self.scale_to_zero_one(subject_data[:, i])
         
+        subject_data = np.nan_to_num(subject_data)
+        imputer = rec.MatrixFactorization(subject_data, k, alpha=alpha, beta=beta, iterations=iter)
+        training = imputer.train()
+        fm = imputer.full_matrix()
+        return fm
+    
+    def update_wave(self, fm, indexes, wave):
+        """
+        Update the wave data after imputation
+        """
+        for i in range(fm.shape[1]):
+            self.data[:,indexes[i],wave] = fm[:, i]
+            
+    def update_subject(self, fm, subject_index):
+        """
+        Update the subject data after imputation
+        """
+        for i in range(fm.shape[1]):
+            self.data[subject_index,:,:] = fm
     
     def index_missing_var(self, wave_data):
         """
@@ -82,6 +112,12 @@ class Structure:
         """
         return self.data[:, :, wave-1]
     
+    def pull_by_subject(self, id_index):
+        """
+        Get the data from subject ID
+        """
+        return self.data[id_index, :, :]
+    
     def scale_to_zero_one(self, array):
         """
         A scaling function to scale an array between 0 and 1 using the max/min values
@@ -91,4 +127,22 @@ class Structure:
         
         return (array - min) / (max - min)
     
-    
+    def run_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="wave"):
+        """
+        run the imputation for the entire dataset
+        """
+        m, n, z = self.data.shape
+        
+        for i in range(1, z+1):
+            if (verbose == "wave") | (verbose == "all") :
+                print("=====imputation for wave "+ str(i) + "=====")
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(i))
+            imputed_wave_data = self.impute_wave(wave_data, k=k1, alpha=alpha1, beta=beta1, iter=iteration)
+            self.update_wave(imputed_wave_data, indexes, i)
+            
+        for i in range(m):
+            if (verbose == "subject") | (verbose == "all"):
+                if ((i+1) % 100 == 0) | ((i+1)==len(m)):
+                    print("=====imputation for subject "+ str(self.meta['CVDIDs'][i]) + "=====")
+            imputed_subject_data = self.impute_subject(self.pull_by_subject(i), k=k2, alpha=alpha2, beta=beta2, iter=iteration)
+            self.update_subject(imputed_subject_data, i)

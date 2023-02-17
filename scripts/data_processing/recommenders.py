@@ -21,7 +21,7 @@ class MatrixFactorization():
         self.beta = beta
         self.iterations = iterations
 
-    def train(self):
+    def train(self, verbose=True):
         # Initialize user and item latent feature matrice
         self.P = np.random.normal(scale=1./self.K, size=(self.num_users, self.K))
         self.Q = np.random.normal(scale=1./self.K, size=(self.num_items, self.K))
@@ -46,8 +46,9 @@ class MatrixFactorization():
             self.sgd()
             mse = self.mse()
             training_process.append((i, mse))
-            if (i+1) % 100 == 0:
-                print("Iteration: %d ; error = %.4f" % (i+1, mse))
+            if verbose == True:
+                if (i+1) % 100 == 0:
+                    print("Iteration: %d ; error = %.4f" % (i+1, mse))
 
         return training_process
 

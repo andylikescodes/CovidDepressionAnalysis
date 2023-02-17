@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import math
 import recommenders as rec
+import pickle
 
 from constants import *
 
@@ -55,7 +56,7 @@ class Structure:
         new_wave_data = np.take(wave_data, all_indexes, axis=1)
         return new_wave_data, all_indexes
     
-    def impute_wave(self, new_wave_data, k, alpha=0.01, beta=0.01, iter=200):
+    def impute_wave(self, new_wave_data, k, alpha=0.01, beta=0.01, iter=200, verbose=False):
         """
         Impute the missing data for the specific wave.
         """
@@ -64,11 +65,11 @@ class Structure:
             
         new_wave_data = np.nan_to_num(new_wave_data)
         imputer = rec.MatrixFactorization(new_wave_data, k, alpha=alpha, beta=beta, iterations=iter)
-        training = imputer.train()
+        training = imputer.train(verbose=verbose)
         fm = imputer.full_matrix()
-        return fm
+        return fm, training
     
-    def impute_subject(self, subject_data, k, alpha=0.01, beta=0.01, iter=200):
+    def impute_subject(self, subject_data, k, alpha=0.01, beta=0.01, iter=200, verbose=False):
         """
         Impute the missing data for the specific subject.
         """
@@ -77,16 +78,16 @@ class Structure:
         
         subject_data = np.nan_to_num(subject_data)
         imputer = rec.MatrixFactorization(subject_data, k, alpha=alpha, beta=beta, iterations=iter)
-        training = imputer.train()
+        training = imputer.train(verbose=verbose)
         fm = imputer.full_matrix()
-        return fm
+        return fm, training
     
     def update_wave(self, fm, indexes, wave):
         """
         Update the wave data after imputation
         """
         for i in range(fm.shape[1]):
-            self.data[:,indexes[i],wave] = fm[:, i]
+            self.data[:,indexes[i],wave-1] = fm[:, i]
             
     def update_subject(self, fm, subject_index):
         """
@@ -109,13 +110,13 @@ class Structure:
         """
         Get the wave data from the full data structure.
         """
-        return self.data[:, :, wave-1]
+        return self.data[:, :, wave-1].copy()
     
     def pull_by_subject(self, id_index):
         """
         Get the data from subject ID
         """
-        return self.data[id_index, :, :]
+        return self.data[id_index, :, :].copy()
     
     def scale_to_zero_one(self, array):
         """
@@ -126,22 +127,37 @@ class Structure:
         
         return (array - min) / (max - min)
     
-    def run_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="wave"):
+    def run_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="wave", save_loss_wave=None, save_loss_subject=None):
         """
         run the imputation for the entire dataset
         """
         m, n, z = self.data.shape
         
+        wave_training_loss = {}
+        
         for i in range(1, z+1):
             if (verbose == "wave") | (verbose == "all") :
                 print("=====imputation for wave "+ str(i) + "=====")
             wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(i))
-            imputed_wave_data = self.impute_wave(wave_data, k=k1, alpha=alpha1, beta=beta1, iter=iteration)
+            imputed_wave_data, training_processes = self.impute_wave(wave_data, k=k1, alpha=alpha1, beta=beta1, iter=iteration, verbose=False)
             self.update_wave(imputed_wave_data, indexes, i)
+            wave_training_loss[i] = training_processes
+        
+        if save_loss_wave:
+            with open(save_loss_wave, 'wb') as handle:
+                pickle.dump(wave_training_loss, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                
+                
+        subject_training_loss = {}
             
         for i in range(m):
             if (verbose == "subject") | (verbose == "all"):
                 if ((i+1) % 100 == 0) | ((i+1)==len(m)):
                     print("=====imputation for subject "+ str(self.meta['CVDIDs'][i]) + "=====")
-            imputed_subject_data = self.impute_subject(self.pull_by_subject(i), k=k2, alpha=alpha2, beta=beta2, iter=iteration)
+            imputed_subject_data, training_processes = self.impute_subject(self.pull_by_subject(i), k=k2, alpha=alpha2, beta=beta2, iter=iteration, verbose=False)
             self.update_subject(imputed_subject_data, i)
+            subject_training_loss[i] = training_processes
+            
+        if save_loss_subject:
+            with open(save_loss_wave, 'wb') as handle:
+                pickle.dump(subject_training_loss, handle, protocol=pickle.HIGHEST_PROTOCOL)

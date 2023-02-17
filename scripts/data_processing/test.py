@@ -92,5 +92,23 @@ class TestClass:
         test_df = pd.read_csv('../../output/v3_python/raw.csv')
         # Focus on just two waves for testing
         test_structure = Structure(test_df)
-        test_structure.run_imputation(k1=10, k2=5, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=500)
+        test_structure.run_imputation(k1=15, k2=10, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=1000, save_loss_wave='../../output/training_loss/wave.pkl', save_loss_subject='../../output/training_loss/subject.pkl')
         assert np.isnan(test_structure.data).any() == False
+        
+    def test_update_wave(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['wave']==1) | (test_df['wave']==2), :]
+        test_structure = Structure(test_df)
+        
+        wave_data = test_structure.pull_by_wave(2)
+        print(test_structure.data.shape)
+        print(wave_data.shape)
+        
+        new_wave_data, indexes = test_structure.generate_structure_for_imput(wave_data)
+        
+        imputed_wave_data = test_structure.impute_wave(new_wave_data, k=5, iter=1000)
+        
+        print(imputed_wave_data.shape)

@@ -92,7 +92,7 @@ class TestClass:
         test_df = pd.read_csv('../../output/v3_python/raw.csv')
         # Focus on just two waves for testing
         test_structure = Structure(test_df)
-        test_structure.run_imputation(k1=15, k2=10, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=1000, save_loss_wave='../../output/training_loss/wave.pkl', save_loss_subject='../../output/training_loss/subject.pkl')
+        test_structure.run_imputation(k1=15, k2=10, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=200, save_loss_wave='../../output/training_loss/wave.pkl', save_loss_subject='../../output/training_loss/subject.pkl')
         assert np.isnan(test_structure.data).any() == False
         
     def test_update_wave(self):
@@ -112,3 +112,62 @@ class TestClass:
         imputed_wave_data = test_structure.impute_wave(new_wave_data, k=5, iter=1000)
         
         print(imputed_wave_data.shape)
+        
+    def test_create_test_indexes(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['wave']==1) | (test_df['wave']==2), :]
+        test_structure = Structure(test_df)
+        samples = test_structure.generate_random_samples(n_samples=100)
+        print(samples)
+        print(len(samples))
+        
+    def test_testing_values(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['wave']==1) | (test_df['wave']==2), :]
+        test_structure = Structure(test_df)
+        test_case_indexes, test_case_values = test_structure.create_testing_data(n_samples=100)
+        
+        print(test_case_indexes)
+        print(len(test_case_values))
+        print(test_case_values[0])
+        
+        for i in range(len(test_case_indexes)):
+            assert (test_structure.ori[test_case_indexes[i]] == test_case_values[i])
+        
+    def test_estimate_imputation_error(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['wave']==1) | (test_df['wave']==2), :]
+        test_structure = Structure(test_df)
+        test_case_indexes, test_case_values = test_structure.create_testing_data(n_samples=100)
+        
+        test_structure.run_imputation(k1=10, k2=5, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=3000, verbose='wave')
+        assert(test_structure.is_imputed == True)
+        print(test_structure.estimate_imputation_error(test_case_indexes))
+        
+        
+    def test_compare_different_computation(self):
+        test_df = pd.read_csv('../../output/v3_python/raw.csv')
+        # Focus on just two waves for testing
+        test_df = test_df.loc[(test_df['wave']==1) | (test_df['wave']==2), :]
+        test_structure = Structure(test_df)
+        test_case_indexes, test_case_values = test_structure.create_testing_data(n_samples=100)
+        
+        test_structure.reset_imputed()
+        test_structure.set_na_values(test_case_indexes)
+        test_structure.mf_imputation(k1=10, k2=5, alpha1=0.01, alpha2=0.01, beta1=0.01, beta2=0.01, iteration=3000, verbose='wave')
+        assert(test_structure.is_imputed == True)
+        print(test_structure.impute_method)
+        print(test_structure.estimate_imputation_error(test_case_indexes))
+        
+        test_structure.reset_imputed()
+        test_structure.set_na_values(test_case_indexes)
+        test_structure.knn_imputation(k1=5, k2=1, verbose='wave')
+        assert(test_structure.is_imputed == True)
+        print(test_structure.impute_method)
+        print(test_structure.estimate_imputation_error(test_case_indexes))
+        
+        
+        

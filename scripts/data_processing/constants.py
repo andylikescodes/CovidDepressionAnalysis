@@ -3,6 +3,7 @@ binaries = ["Race_A",
             "Race_W", 
             "Gender", 
             "Mandatory_SAH"]
+
 continuous = ["Political_Views", 
               "Age", 
               "Education", 
@@ -10,7 +11,7 @@ continuous = ["Political_Views",
               "PSS", 
               "State_Anxiety", 
               "Fear_COVID", 
-              'Emo_Support',
+              'Emot_Support',
               "Loneliness", 
               "Covid_Cases_State_Slope", 
               "Covid_Deaths_State_Slope",
@@ -18,6 +19,45 @@ continuous = ["Political_Views",
               "Covid_Deaths_County_avg",
               "Covid_Cases_County_avg_per_100k",
               "Covid_Deaths_County_avg_per_100k"]
+
+with_binaries = ["Race_A", 
+                "Race_AA", 
+                "Race_W", 
+                "Gender",
+                "Political_Views", 
+                "Age", 
+                "Education", 
+                "BDI", 
+                "PSS", 
+                "STAI", 
+                "Fear", 
+                'Emot_Support',
+                "Loneliness"]
+
+without_binaries = [
+                "Political_Views", 
+                "Age", 
+                "Education", 
+                "BDI", 
+                "PSS", 
+                "STAI", 
+                "Fear", 
+                'Emot_Support',
+                "Loneliness"]
+
+continuous_covid = ["cases_avg", 
+                    "deaths_avg", 
+                    "cases_avg_per_100k", 
+                    "deaths_avg_per_100k",
+                    "slope_new_cases", 
+                    "slope_new_deaths", 
+                    "lat", 
+                    'lng', 
+                    "population"]
+
+
+all = binaries + continuous
+
 others = ["CVDID", 
           "DemW3",
           "States",

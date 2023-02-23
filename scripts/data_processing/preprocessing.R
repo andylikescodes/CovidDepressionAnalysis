@@ -1,5 +1,6 @@
 library('tidyverse')
 
+# A function to link the demographic variables with wave1 and all other waves
 lookup_states <- function(data){
     wave_1 <- data %>% filter(wave=="1")
     wave_1[wave_1$DemC23 == 10, "DemC23"] <- NA
@@ -15,27 +16,34 @@ lookup_states <- function(data){
     return (data)
 }
 
+# Load the source data
 data <- read_csv("data/Wave1-16_paper_release.csv")
+# Use wave 1 data and impute
+data = lookup_states(data)
+
+# Load external data
 external_state <- read_csv("data/w1-w16_external_state.csv")
 external_county <- read_csv("data/externalMeasures_county.csv")
 
-ID_mapping <- read_csv("data/PROLIFIC_PID_2_CVDID.csv")
+# Extra county data for lat/lng/pop from https://simplemaps.com/data/us-counties
+external_county_extra <- read_csv("data/uscounties.csv") 
 
+# Process the county data with lat/lng/pop
+external_county_extra <- external_county_extra %>% mutate(county = tolower(county)) %>%
+                                                    mutate(state_name = tolower(state_name)) %>%
+                                                    rename(state = state_name) %>%
+                                                    mutate(county=ifelse(state=='louisiana', paste(county, 'parish'), county), county=ifelse(state=='alaska', paste(county, 'borough'), county))
+
+# Create mapping for external PROLIFIC_PID with CVDID
+ID_mapping <- read_csv("data/PROLIFIC_PID_2_CVDID.csv")
 external_county_selected <- external_county %>% left_join(ID_mapping, by="PROLIFIC_PID", unmatched="drop") %>%
                     filter(wave_day=="start_date") %>%
-                    select(c("CVDID", "wave", "wave_day", "cvd_cases_7d_avg", "cvd_deaths_7d_avg", "cvd_cases_7d_avg_per_100k", "cvd_deaths_7d_avg_per_100k"))
-
-
-wave_1 <- data %>% filter(wave=="1")
-wave_1[wave_1$DemC23 == 10, "DemC23"]
+                    select(c("CVDID", "wave","county", "wave_day", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k"))
 
 # States mapping
 states <- c("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming");
 states_encoded <- 1:50;
 df <- data.frame(States=states, DemW3=states_encoded)
-
-# Use wave 1 data and impute
-data = lookup_states(data)
 
 external_state_encoded <- external_state %>% right_join(df, by='States', keep=FALSE, unmatched="drop")
 external_state_encoded$wave <- as.character(external_state_encoded$wave)
@@ -44,27 +52,63 @@ external_county_selected$wave <- as.character(external_county_selected$wave)
 ID <- c("CVDID")
 demographics <- c("DemM7", "prlfc_dem_age", "DemC9", "DemC23", "DemC5")
 psychological <- c("BDI_total_raw", "PSS_Total", "STAI_State_raw", "Fear_COVID_raw", "NIH_TB_Emot_Support_raw_total", "NIH_TB_Loneliness_raw_total")
-others <- c("DemW3", "States", "Mandatory_SAH", "slope_new_cases", "slope_new_deaths", 'cvd_cases_7d_avg', "cvd_deaths_7d_avg", "cvd_cases_7d_avg_per_100k", "cvd_deaths_7d_avg_per_100k")
+others <- c("DemW3", "state", 'county', "Mandatory_SAH", "slope_new_cases", "slope_new_deaths", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "lat", 'lng', "population")
 wave <- c("wave")
-
 
 vars <- c(ID, demographics, psychological, others, wave)
 
-#data$wave <- as.double(data$wave)
-
-core_samples <- data %>% left_join(external_state_encoded, by=c("DemW3", "wave")) %>%
-                            left_join(external_county_selected, by=c("CVDID", "wave"), unmatched="drop")
-
+# Process and Select the data
 core_samples <- data %>% 
                     left_join(external_state_encoded, by=c("DemW3", "wave")) %>%
-                    left_join(external_county_selected, by=c("CVDID", "wave"), unmatched="drop") %>%
+                    rename(state=States) %>%
+                    mutate(state = tolower(state)) %>%
+                    left_join(external_county_selected, by=c("CVDID", "wave"), unmatched="drop", multiple='first') %>%
                     filter(sample == "core") %>%
                     filter(wave != "15b") %>%
-                    select(all_of(vars))
+                    left_join(external_county_extra, by=c("state","county"), multiple='first') %>%
+                    select(all_of(vars)) %>%
+                    group_by(state) %>% 
+                    mutate(m_lat=mean(lat, na.rm=TRUE), m_lng=mean(lng, na.rm=TRUE), m_pop=mean(population, na.rm=TRUE), lat=replace(lat, which(is.na(lat)), first(m_lat)), lng=replace(lng, which(is.na(lng)), first(m_lng)), population=replace(population, which(is.na(population)), first(m_pop))) %>%
+                    rename(Political_Views=DemM7, Age=prlfc_dem_age, Race=DemC9, Gender=DemC5, Education=DemC23, BDI=BDI_total_raw, PSS=PSS_Total, STAI=STAI_State_raw, Fear=Fear_COVID_raw, Emot_Support=NIH_TB_Emot_Support_raw_total, Loneliness=NIH_TB_Loneliness_raw_total) %>%
+                    mutate(Race_AA=as.integer(Race==4), Race_A=as.integer(Race==2), Race_W=as.integer(Race==5), Gender=as.integer(Gender==1), Education=replace(Education, which(Education==10), NA))                 
 
-write.csv(core_samples, "data/selected_core_samples.csv")
+psych_dem_data <- core_samples %>% select(c("CVDID", "wave", "Race_AA", "Race_A", "Race_W", "Age", "Gender", "Education", "Political_Views", "BDI", "PSS", "STAI", "Fear", "Emot_Support", "Loneliness"))
+
+covid_data <- core_samples %>% select(c("CVDID", "wave", "county", "state", "lat", "lng", "population", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "slope_new_cases", "slope_new_deaths", "Mandatory_SAH"))
+
+write.csv(psych_dem_data, "output/v3_python/raw2.csv")
+write.csv(covid_data, "output/v3_python/cvd.csv")
+
+
+# test = core_samples %>% group_by(state) %>% mutate(m_lat=mean(lat, na.rm=TRUE), m_lng=mean(lng, na.rm=TRUE), lat=replace(lat, which(is.na(lat)), first(m_lat)), lng=replace(lng, which(is.na(lng)), first(m_lng)))
+
+# test %>% filter(is.na(lat)) %>% select(c('CVDID','wave', 'state', 'county', 'lat', 'lng', 'population', 'cases_avg'))
+
+
+# core_samples %>% filter(wave==1) %>% select(c('CVDID','wave', 'state', 'county', 'lat', 'lng', 'population', 'cases_avg'))
+
+# core_samples %>% filter(is.na(lat)) %>% select(c('CVDID','wave', 'state', 'county', 'lat', 'lng', 'population', 'cases_avg'))
+
+# test = core_samples %>% group_by(state) %>% summarize(m_lat=mean(lat, na.rm=TRUE), m_lng=mean(lng, na.rm=TRUE))
+# test %>% filter(is.na(m_lat))
+
+# test = external_county_extra %>% filter(state=='virginia') %>% select(c('county'))
+
+# external_county %>% filter(state=='alaska') %>% select(c('county'))
+
+# write.csv(core_samples, "data/selected_core_samples.csv")
                              
 
-core_samples %>% select(all_of(c("DemM7", "prlfc_dem_age", "DemC9", "DemC23","DemC5", "wave"))) %>%
-                    filter(wave=="2")
+# core_samples %>% select(all_of(c("DemM7", "prlfc_dem_age", "DemC9", "DemC23","DemC5", "wave"))) %>%
+#                     filter(wave=="2")
 
+# covid_data %>% filter(is.na(cases_avg)) %>% select('state', 'county', 'lat', 'lng', 'cases_avg', 'deaths_avg')
+
+# test1 = external_county_extra %>% filter(state_name=='Louisiana')
+# test2 = external_county %>% filter(state=='louisiana')
+
+# print(unique(test1$county))
+# print(unique(test2$county))
+
+
+# test2 %>% select(c("county", "cases_avg", "deaths_avg"))

@@ -3,15 +3,22 @@ import pandas as pd
 import math
 import recommenders as rec
 import pickle
+from sklearn.impute import KNNImputer
 
 from constants import *
 
 
 class Structure:
-    def __init__(self, df):
-        self.data, self.meta = self.create_data_structure(df)
+    def __init__(self, df, columns):
+        self.ori, self.meta = self.create_data_structure(df, columns)
+        self.scaled_ori = self.ori.copy()
+        self.imputed = self.ori.copy()
+        self.is_scaled = False
+        self.is_imputed = False
+        self.impute_method_wave = None
+        self.impute_method_subject = None
     
-    def create_data_structure(self, df):
+    def create_data_structure(self, df, columns):
         """
         Create the full data structure for the analysis when initializing the data object
         """
@@ -19,10 +26,8 @@ class Structure:
         
         CVDIDs = np.unique(df["CVDID"].values)
         
-        columns = binaries + continuous
-        
         # create an array to store the numerical values
-        tmp_array = np.empty((df.loc[df['wave']==1,:].shape[0], len(columns), 16))
+        tmp_array = np.empty((df.loc[df['wave']==1,:].shape[0], len(columns), len(waves)))
         tmp_array[:] = np.nan
         
         for i in range(len(CVDIDs)):
@@ -39,20 +44,26 @@ class Structure:
         
         return tmp_array, meta
     
+    def scale_original(self):
+        for w in self.meta['waves']:
+            wave_data = self.pull_by_wave(w)
+            wave_data, indexes = self.generate_structure_for_imput(wave_data)
+            m,n = wave_data.shape
+            
+            for i in range(n):
+                wave_data[:, i] = self.scale_to_zero_one(wave_data[:, i])
+            self.update_wave(wave_data, indexes, w)
+        self.scaled_ori = self.imputed.copy()
+        
     def generate_structure_for_imput(self, wave_data):
         """
         Generate the data for a specific wave for the imputation.
         """
         m,n = wave_data.shape
         missing_indexes = self.index_missing_var(wave_data)
-        print('The columns that are missing for this wave: ')
-        print(missing_indexes)
-        for i in missing_indexes:
-            print(self.meta['columns'][i])
             
         all_indexes = [x for x in range(n)]
         all_indexes = np.delete(all_indexes, missing_indexes)
-        print(all_indexes)
         new_wave_data = np.take(wave_data, all_indexes, axis=1)
         return new_wave_data, all_indexes
     
@@ -60,9 +71,6 @@ class Structure:
         """
         Impute the missing data for the specific wave.
         """
-        for i in range(new_wave_data.shape[1]):
-            new_wave_data[:, i] = self.scale_to_zero_one(new_wave_data[:, i])
-            
         new_wave_data = np.nan_to_num(new_wave_data)
         imputer = rec.MatrixFactorization(new_wave_data, k, alpha=alpha, beta=beta, iterations=iter)
         training = imputer.train(verbose=verbose)
@@ -73,9 +81,6 @@ class Structure:
         """
         Impute the missing data for the specific subject.
         """
-        for i in range(subject_data.shape[1]):
-            subject_data[:, i] = self.scale_to_zero_one(subject_data[:, i])
-        
         subject_data = np.nan_to_num(subject_data)
         imputer = rec.MatrixFactorization(subject_data, k, alpha=alpha, beta=beta, iterations=iter)
         training = imputer.train(verbose=verbose)
@@ -87,13 +92,13 @@ class Structure:
         Update the wave data after imputation
         """
         for i in range(fm.shape[1]):
-            self.data[:,indexes[i],wave-1] = fm[:, i]
+            self.imputed[:,indexes[i],wave-1] = fm[:, i]
             
     def update_subject(self, fm, subject_index):
         """
         Update the subject data after imputation
         """
-        self.data[subject_index,:,:] = fm
+        self.imputed[subject_index,:,:] = fm
     
     def index_missing_var(self, wave_data):
         """
@@ -110,13 +115,13 @@ class Structure:
         """
         Get the wave data from the full data structure.
         """
-        return self.data[:, :, wave-1].copy()
+        return self.imputed[:, :, wave-1].copy()
     
     def pull_by_subject(self, id_index):
         """
         Get the data from subject ID
         """
-        return self.data[id_index, :, :].copy()
+        return self.imputed[id_index, :, :].copy()
     
     def scale_to_zero_one(self, array):
         """
@@ -127,19 +132,23 @@ class Structure:
         
         return (array - min) / (max - min)
     
-    def run_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="wave", save_loss_wave=None, save_loss_subject=None):
+    def mf_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="all", save_loss_wave=None, save_loss_subject=None):
         """
         run the imputation for the entire dataset
         """
-        m, n, z = self.data.shape
+        m, n, z = self.imputed.shape
         
         wave_training_loss = {}
         
+        verbose_loss_wave = False
+        verbose_loss_subject = False
+        
         for i in range(1, z+1):
             if (verbose == "wave") | (verbose == "all") :
-                print("=====imputation for wave "+ str(i) + "=====")
+                print("=====imputation for wave "+ str(i) + " k={} =====".format(str(k1)))
+                verbose_loss_wave = True
             wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(i))
-            imputed_wave_data, training_processes = self.impute_wave(wave_data, k=k1, alpha=alpha1, beta=beta1, iter=iteration, verbose=False)
+            imputed_wave_data, training_processes = self.impute_wave(wave_data, k=k1, alpha=alpha1, beta=beta1, iter=iteration, verbose=verbose_loss_wave)
             self.update_wave(imputed_wave_data, indexes, i)
             wave_training_loss[i] = training_processes
         
@@ -152,12 +161,207 @@ class Structure:
             
         for i in range(m):
             if (verbose == "subject") | (verbose == "all"):
-                if ((i+1) % 100 == 0) | ((i+1)==len(m)):
-                    print("=====imputation for subject "+ str(self.meta['CVDIDs'][i]) + "=====")
-            imputed_subject_data, training_processes = self.impute_subject(self.pull_by_subject(i), k=k2, alpha=alpha2, beta=beta2, iter=iteration, verbose=False)
+                print("=====imputation for subject "+ str(self.meta['CVDIDs'][i]) + " k={} =====".format(str(k2)))
+                verbose_loss_subject = True
+            imputed_subject_data, training_processes = self.impute_subject(self.pull_by_subject(i), k=k2, alpha=alpha2, beta=beta2, iter=iteration, verbose=verbose_loss_subject)
             self.update_subject(imputed_subject_data, i)
             subject_training_loss[i] = training_processes
             
         if save_loss_subject:
-            with open(save_loss_wave, 'wb') as handle:
+            with open(subject_training_loss, 'wb') as handle:
                 pickle.dump(subject_training_loss, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                
+        self.is_imputed = True
+        self.impute_method_wave = 'mf_k1={}'.format(str(k1))
+        self.impute_method_subject = 'mf_k2={}'.format(str(k2))
+        
+    def mf_impute_wave(self, k, iter, reset=True, verbose=False):
+        # Run imputation for mf for each wave
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_wave = "mf_wave_k={}".format(str(k))
+        
+        for w in self.meta['waves']: 
+            print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
+            imputed_wave_data, _ = self.impute_wave(wave_data, k=k, iter=iter, verbose=verbose)
+            self.update_wave(imputed_wave_data, indexes, w)
+            
+        self.is_imputed = True
+
+        
+    def mf_impute_subject(self, k, iter, reset=True, verbose=False):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_subject = 'mf_subject_k={}'.format(str(k))
+        
+        print("=====imputation for subjects" + " method={} =====".format(self.impute_method_subject))
+            
+        for i in range(len(self.meta['CVDIDs'])):
+            imputed_subject_data, training_processes = self.impute_subject(self.pull_by_subject(i), k=k, iter=iter, verbose=verbose)
+            self.update_subject(imputed_subject_data, i)
+        
+        self.is_imputed = True
+
+        
+    def knn_impute_wave(self, k, reset=True):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_wave = "knn_wave_k={}".format(str(k))
+        
+        imputer = KNNImputer(n_neighbors=k, weights='uniform')
+            
+        for w in self.meta['waves']: 
+            print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
+            imputed_wave_data = imputer.fit_transform(wave_data)
+            self.update_wave(imputed_wave_data, indexes, w)
+            
+        self.is_imputed = True
+        
+    def knn_impute_subject(self, k, reset=True):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_subject = "knn_subject_k={}".format(str(k))
+        
+        imputer = KNNImputer(n_neighbors=k, weights='uniform', keep_empty_features=True)
+        
+        print("=====imputation for subjects" + " method={} =====".format(self.impute_method_subject))
+        
+        for i in range(len(self.meta['CVDIDs'])):
+            imputed_subject_data = imputer.fit_transform(self.pull_by_subject(i).T).T
+            self.update_subject(imputed_subject_data, i)
+            
+        self.is_imputed = True
+        
+    def reset_imputed(self):
+        """Reset the imputed dataframe
+        """
+        self.imputed = self.ori.copy()
+        self.is_imputed = False
+        self.scale_original()
+    
+    def generate_random_samples(self, n_samples):
+        """Generate a random sample for testing the bias of a specific imputation method
+
+        Args:
+            n_samples (int): the number of samples that we need.
+
+        Returns:
+            test_case_indexes: A list of 3d tuples for the indexes for the sample sample.
+        """
+        ori_NAs_indicator = np.isnan(self.ori)
+        # Create 100 testing cases for the imputation for each wave
+        m,n,l = self.imputed.shape
+        test_case_indexes = []
+        
+        i=0
+        while (i < n_samples):
+            #print(i)
+            this_index = (np.random.randint(0,m) , np.random.randint(0,n), np.random.randint(0,l))
+            if (ori_NAs_indicator[this_index] == True) | (this_index in test_case_indexes):
+                continue
+            test_case_indexes.append(this_index)
+            i += 1
+         
+        return test_case_indexes
+    
+    def create_testing_data(self, n_samples=100):
+        """ Create a dataset for for the testing data
+
+        Args:
+            n_samples (int, optional): the number of samples. Defaults to 100.
+
+        Returns:
+            test_case_indexes (list): A list of 3d tuples for the indexes for the sample sample.
+            test_case_values (list): A list for the values of the testing data
+        """
+        # Create 100 testing cases for the imputation for each wave[]
+        test_case_values = []
+        test_case_indexes = self.generate_random_samples(n_samples=n_samples)
+        for idx in test_case_indexes:
+            this_value = self.imputed[idx]
+            test_case_values.append(this_value)
+        
+        return test_case_indexes, test_case_values
+    
+    def set_na_values(self, test_case_indexes):
+        """Set target values to NA
+
+        Args:
+            test_case_indexes (list): A list of indexes that are set to NA 
+        """
+        for idx in test_case_indexes:
+            self.imputed[idx] = np.nan
+    
+    def estimate_imputation_error(self, test_case_indexes):
+        """A function to estimate the bias of a paritular imputation method
+
+        Args:
+            test_case_indexes (list): List of indexes for the testing data
+
+        Raises:
+            ValueError: Value error for non-imputed data
+
+        Returns:
+            mse: mean squared error for the dataset
+        """
+        mse = 0
+        if self.is_imputed == True:
+            for idx in test_case_indexes:
+                mse += (self.scaled_ori[idx] - self.imputed[idx])**2
+        elif self.is_imputed == False:
+            raise ValueError('Data have not imputed yet.')
+        
+        return mse/len(test_case_indexes)
+    
+    def knn_imputation(self, k1=5, k2=1, verbose="wave"):
+        """KNN imputation
+
+        Args:
+            k1 (int, optional): K to impute wave. Defaults to 5.
+            k2 (int, optional): K to impute subject. Defaults to 1. Set to default 1 because we assumes that the missing imputation should be similar to the closest wave.
+            verbose (str, optional): Show the details. Defaults to "wave". "subject" or "all".
+        """
+        m, n, z = self.imputed.shape
+        
+        imputer_k1 = KNNImputer(n_neighbors=k1, weights='uniform')
+        for i in range(1, z+1):
+            if (verbose == "wave") | (verbose == "all") :
+                print("=====imputation for wave "+ str(i) + " k={} =====".format(str(k1)))
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(i))
+            
+            imputed_wave_data = imputer_k1.fit_transform(wave_data)
+            self.update_wave(imputed_wave_data, indexes, i)
+            
+        
+        imputer_k2 = KNNImputer(n_neighbors=k2, weights='uniform')
+        for i in range(m):
+            if (verbose == "subject") | (verbose == "all"):
+                print("=====imputation for subject "+ str(self.meta['CVDIDs'][i]) + " k={} =====".format(str(k2)))
+                
+            imputed_subject_data = imputer_k2.fit_transform(self.pull_by_subject(i).T).T
+            self.update_subject(imputed_subject_data, i)
+        
+        self.is_imputed = True
+        self.impute_method_wave = 'knn_k1={}'.format(str(k1))
+        self.impute_method_subject = 'knn_k2={}'.format(str(k2))
+            
+    def simple_imputation(self, method='mean'):
+        pass
+
+        
+        
+            
+        
+                
+        
+        
+        
+        
+        
+        

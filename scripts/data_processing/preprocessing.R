@@ -52,7 +52,7 @@ external_county_selected$wave <- as.character(external_county_selected$wave)
 ID <- c("CVDID")
 demographics <- c("DemM7", "prlfc_dem_age", "DemC9", "DemC23", "DemC5")
 psychological <- c("BDI_total_raw", "PSS_Total", "STAI_State_raw", "Fear_COVID_raw", "NIH_TB_Emot_Support_raw_total", "NIH_TB_Loneliness_raw_total")
-others <- c("DemW3", "state", 'county', "Mandatory_SAH", "slope_new_cases", "slope_new_deaths", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "lat", 'lng', "population")
+others <- c("DemW3", "state", 'county', "Mandatory_SAH", "slope_new_cases", "slope_new_deaths", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "lat", 'lng', "population", "rake_weights")
 wave <- c("wave")
 
 vars <- c(ID, demographics, psychological, others, wave)
@@ -76,8 +76,10 @@ psych_dem_data <- core_samples %>% select(c("CVDID", "wave", "Race_AA", "Race_A"
 
 covid_data <- core_samples %>% select(c("CVDID", "wave", "county", "state", "lat", "lng", "population", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "slope_new_cases", "slope_new_deaths", "Mandatory_SAH"))
 
-write.csv(psych_dem_data, "output/v3_python/raw2.csv")
-write.csv(covid_data, "output/v3_python/cvd.csv")
+write.csv(core_samples, "output/v3_python/core.csv")
+
+# write.csv(psych_dem_data, "output/v3_python/raw2.csv")
+# write.csv(covid_data, "output/v3_python/cvd.csv")
 
 
 # test = core_samples %>% group_by(state) %>% mutate(m_lat=mean(lat, na.rm=TRUE), m_lng=mean(lng, na.rm=TRUE), lat=replace(lat, which(is.na(lat)), first(m_lat)), lng=replace(lng, which(is.na(lng)), first(m_lng)))

@@ -10,3 +10,8 @@ output/
 .pytest_cache
 __pycache__
 .ipynb_checkpoints
+
+
+.Rdata
+.Rhistorys
+

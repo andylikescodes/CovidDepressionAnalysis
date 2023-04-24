@@ -3,7 +3,10 @@ import pandas as pd
 import math
 import recommenders as rec
 import pickle
-from sklearn.impute import KNNImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import KNNImputer, SimpleImputer, IterativeImputer
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import BayesianRidge, Ridge
 
 from constants import *
 
@@ -17,6 +20,7 @@ class Structure:
         self.is_imputed = False
         self.impute_method_wave = None
         self.impute_method_subject = None
+        self.scale_original()
     
     def create_data_structure(self, df, columns):
         """
@@ -45,13 +49,14 @@ class Structure:
         return tmp_array, meta
     
     def scale_original(self):
+        
         for w in self.meta['waves']:
             wave_data = self.pull_by_wave(w)
             wave_data, indexes = self.generate_structure_for_imput(wave_data)
             m,n = wave_data.shape
             
             for i in range(n):
-                wave_data[:, i] = self.scale_to_zero_one(wave_data[:, i])
+                wave_data[:, i] = self.scale_to_zero_one(wave_data[:, i], indexes[i], self.meta['columns'][indexes[i]])
             self.update_wave(wave_data, indexes, w)
         self.scaled_ori = self.imputed.copy()
         
@@ -123,13 +128,19 @@ class Structure:
         """
         return self.imputed[id_index, :, :].copy()
     
-    def scale_to_zero_one(self, array):
+    def scale_to_zero_one(self, array, i, col_name):
         """
         A scaling function to scale an array between 0 and 1 using the max/min values
         """
-        max = np.nanmax(array)
-        min = np.nanmin(array)
+        all_var_ranges = variable_ranges.keys()
         
+        if col_name in all_var_ranges:
+            max = variable_ranges[col_name][1]
+            min = variable_ranges[col_name][0]
+        else:
+            max = np.nanmax(self.ori[:,i,:])
+            min = np.nanmin(self.ori[:,i,:])
+
         return (array - min) / (max - min)
     
     def mf_imputation(self, k1, k2, alpha1, alpha2, beta1, beta2, iteration=2000, verbose="all", save_loss_wave=None, save_loss_subject=None):
@@ -183,28 +194,12 @@ class Structure:
         self.impute_method_wave = "mf_wave_k={}".format(str(k))
         
         for w in self.meta['waves']: 
-            print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            #print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
             wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
             imputed_wave_data, _ = self.impute_wave(wave_data, k=k, iter=iter, verbose=verbose)
             self.update_wave(imputed_wave_data, indexes, w)
             
         self.is_imputed = True
-
-        
-    def mf_impute_subject(self, k, iter, reset=True, verbose=False):
-        if reset==True:
-            self.reset_imputed()
-            
-        self.impute_method_subject = 'mf_subject_k={}'.format(str(k))
-        
-        print("=====imputation for subjects" + " method={} =====".format(self.impute_method_subject))
-            
-        for i in range(len(self.meta['CVDIDs'])):
-            imputed_subject_data, training_processes = self.impute_subject(self.pull_by_subject(i), k=k, iter=iter, verbose=verbose)
-            self.update_subject(imputed_subject_data, i)
-        
-        self.is_imputed = True
-
         
     def knn_impute_wave(self, k, reset=True):
         if reset==True:
@@ -215,11 +210,77 @@ class Structure:
         imputer = KNNImputer(n_neighbors=k, weights='uniform')
             
         for w in self.meta['waves']: 
-            print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            #print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
             wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
             imputed_wave_data = imputer.fit_transform(wave_data)
             self.update_wave(imputed_wave_data, indexes, w)
             
+        self.is_imputed = True
+
+    def simple_impute_wave(self, reset=False):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_wave = "simple_wave_method={}".format('mean')
+        
+        imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
+            
+        for w in self.meta['waves']: 
+            #print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
+            imputed_wave_data = imputer.fit_transform(wave_data)
+            self.update_wave(imputed_wave_data, indexes, w)
+            
+        self.is_imputed = True
+
+    def multiple_impute_wave(self, estimator='BayesianRidge', max_iter=100, reset=False):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_wave = "multiple_wave"
+        if estimator=='Forest':
+            est = RandomForestRegressor(
+                # We tuned the hyperparameters of the RandomForestRegressor to get a good
+                # enough predictive performance for a restricted execution time.
+                n_estimators=50,
+                n_jobs=2
+            )
+            imputer = IterativeImputer(estimator=est, max_iter=max_iter)
+        elif estimator=='Ridge':
+            imputer = IterativeImputer(estimator=Ridge(alpha=1e3),max_iter=max_iter)
+        elif estimator=='BayesianRidge':
+            imputer = IterativeImputer(max_iter=max_iter)
+
+            
+        for w in self.meta['waves']: 
+            #print("=====imputation for wave "+ str(w) + " method={} =====".format(self.impute_method_wave))
+            wave_data, indexes = self.generate_structure_for_imput(self.pull_by_wave(w))
+            imputed_wave_data = imputer.fit_transform(wave_data)
+            self.update_wave(imputed_wave_data, indexes, w)
+            
+        self.is_imputed = True
+
+    def mf_impute_subject(self, k, iter, reset=True, verbose=False):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_subject = 'mf_subject_k={}'.format(str(k))
+                    
+        for i in range(len(self.meta['CVDIDs'])):
+            tmp = self.pull_by_subject(i)
+            waves = np.reshape(np.asarray(self.meta['waves']),(1,len(self.meta['waves'])))
+            tmp = np.vstack([tmp, waves])
+            detect_na_features = []
+            for j in range(tmp.shape[0]):
+                if np.isnan(tmp[j,:]).all():
+                    detect_na_features.append(j)
+            imputed_subject_data, training_processes = self.impute_subject(tmp, k=k, iter=iter, verbose=verbose)
+            for idx in detect_na_features:
+                imputed_subject_data[idx, :] = np.nan
+
+            imputed_subject_data = imputed_subject_data[:-1,:]
+            self.update_subject(imputed_subject_data, i)
+        
         self.is_imputed = True
         
     def knn_impute_subject(self, k, reset=True):
@@ -230,10 +291,77 @@ class Structure:
         
         imputer = KNNImputer(n_neighbors=k, weights='uniform', keep_empty_features=True)
         
-        print("=====imputation for subjects" + " method={} =====".format(self.impute_method_subject))
+        for i in range(len(self.meta['CVDIDs'])):
+            tmp = self.pull_by_subject(i)
+            waves = np.reshape(np.asarray(self.meta['waves']),(1,len(self.meta['waves'])))
+            tmp = np.vstack([tmp, waves])
+            detect_na_features = []
+            for j in range(tmp.shape[0]):
+                if np.isnan(tmp[j,:]).all():
+                    detect_na_features.append(j)
+
+            imputed_subject_data = imputer.fit_transform(tmp.T).T
+
+            for idx in detect_na_features:
+                imputed_subject_data[idx, :] = np.nan
+            imputed_subject_data = imputed_subject_data[:-1,:]
+            
+            self.update_subject(imputed_subject_data, i)
+            
+        self.is_imputed = True
+
+    def simple_impute_subject(self, reset=True):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_subject = "simple_subject_method=mean"
+        
+        imputer = SimpleImputer(missing_values=np.nan, strategy='mean', keep_empty_features=True)
         
         for i in range(len(self.meta['CVDIDs'])):
-            imputed_subject_data = imputer.fit_transform(self.pull_by_subject(i).T).T
+            tmp = self.pull_by_subject(i)
+            waves = np.reshape(np.asarray(self.meta['waves']),(1,len(self.meta['waves'])))
+            tmp = np.vstack([tmp, waves])
+            detect_na_features = []
+            for j in range(tmp.shape[0]):
+                if np.isnan(tmp[j,:]).all():
+                    detect_na_features.append(j)
+                    
+
+            imputed_subject_data = imputer.fit_transform(tmp.T).T
+            for idx in detect_na_features:
+                imputed_subject_data[idx, :] = np.nan
+            
+            imputed_subject_data = imputed_subject_data[:-1,:]
+            
+            self.update_subject(imputed_subject_data, i)
+            
+        self.is_imputed = True
+
+    def multiple_impute_subject(self, max_iter=100, reset=True):
+        if reset==True:
+            self.reset_imputed()
+            
+        self.impute_method_subject = "multiple_subject={}"
+        
+        imputer = IterativeImputer(max_iter=max_iter, keep_empty_features=True)
+        
+        for i in range(len(self.meta['CVDIDs'])):
+            tmp = self.pull_by_subject(i)
+            waves = np.reshape(np.asarray(self.meta['waves']),(1,len(self.meta['waves'])))
+            tmp = np.vstack([tmp, waves])
+            detect_na_features = []
+            for j in range(tmp.shape[0]):
+                if np.isnan(tmp[j,:]).all():
+                    detect_na_features.append(j)
+                    
+
+            imputed_subject_data = imputer.fit_transform(tmp.T).T
+            for idx in detect_na_features:
+                imputed_subject_data[idx, :] = np.nan
+            
+            imputed_subject_data = imputed_subject_data[:-1,:]
+            
             self.update_subject(imputed_subject_data, i)
             
         self.is_imputed = True
@@ -311,13 +439,17 @@ class Structure:
             mse: mean squared error for the dataset
         """
         mse = 0
+        test_case_count = 0
         if self.is_imputed == True:
             for idx in test_case_indexes:
-                mse += (self.scaled_ori[idx] - self.imputed[idx])**2
+                if ~(np.isnan(self.imputed[idx])):
+                    test_case_count += 1
+                    mse += (self.scaled_ori[idx] - self.imputed[idx])**2
+
         elif self.is_imputed == False:
             raise ValueError('Data have not imputed yet.')
         
-        return mse/len(test_case_indexes)
+        return mse/test_case_count, test_case_count
     
     def knn_imputation(self, k1=5, k2=1, verbose="wave"):
         """KNN imputation

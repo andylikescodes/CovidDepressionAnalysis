@@ -2,6 +2,8 @@ from imputation_data_structure import *
 import pandas as pd
 import math
 from random import sample, choices
+from constants import *
+import sys
 
 class TestClass:
     def test_object(self):
@@ -168,6 +170,110 @@ class TestClass:
         assert(test_structure.is_imputed == True)
         print(test_structure.impute_method)
         print(test_structure.estimate_imputation_error(test_case_indexes))
+
+    def test_knn_subject_impute2(self):
+        test_df = pd.read_csv('../../output/v3_python/raw2.csv')
+        # Focus on just two waves for testing
+        test_structure = Structure(test_df, without_binaries)
+
+        test_structure.knn_impute_subject(k=1, reset=True)
+
+        print(np.isnan(test_structure.imputed).any())
         
+    def test_knn_choose_k(self):
+        df = pd.read_csv('../../output/v3_python/raw2.csv', index_col=0)
+
+        sys.stdout = open('../../output/logs/compare_impute.log', 'w')
+
+        # Focus on just two waves for testing
+        print("========Testing on variables: ")
+        print(without_binaries)
         
+        data_structure = Structure(df, without_binaries)
+
+        n_samples = int(np.sum(~np.isnan(data_structure.ori)) * (1/100))
+        print("========Testing on "+ str(n_samples) + " samples")
+                
+        print("====Testing for KNN====")
+        # Impute waves and calculate the mse for mf
+        print("====Testing for k=" + str(25) + '====')
+        knn_mses = []
+        for i in range(100):
+            test_indexes, _ = data_structure.create_testing_data(n_samples=n_samples)
+            data_structure.set_na_values(test_indexes)
+            data_structure.knn_impute_wave(k=25, reset=False)
+            knn_mses.append(data_structure.estimate_imputation_error(test_indexes))
+            data_structure.reset_imputed()
+        print('mean_mse='+ str(np.mean(knn_mses)))
+        print('mean_stderr='+ str(np.std(knn_mses)/len(knn_mses)))
+
+
+        print("====Testing for Simple mean imputation====")
+        simple_mses=[]
+        for i in range(100):
+            test_indexes, _ = data_structure.create_testing_data(n_samples=n_samples)
+            data_structure.set_na_values(test_indexes)
+            data_structure.simple_impute_wave(reset=False)
+            simple_mses.append(data_structure.estimate_imputation_error(test_indexes))
+            data_structure.reset_imputed()
+
+        print('mean_mse='+ str(np.mean(simple_mses)))
+        print('mean_stderr='+ str(np.std(simple_mses)/len(simple_mses)))
+
+        print("====Testing for multiple imputation BayesianRidge====")
+        bayes_ridge_mses=[]
+        for i in range(100):
+            test_indexes, _ = data_structure.create_testing_data(n_samples=n_samples)
+            data_structure.set_na_values(test_indexes)
+            data_structure.multiple_impute_wave(max_iter=100,reset=False)
+            bayes_ridge_mses.append(data_structure.estimate_imputation_error(test_indexes))
+            data_structure.reset_imputed()
+        print('mean_mse='+ str(np.mean(bayes_ridge_mses)))
+        print('mean_stderr='+ str(np.std(bayes_ridge_mses)/len(bayes_ridge_mses)))
+
+        print("====Testing for multiple imputation Random Forest====")
+        random_forest_mses=[]
+        for i in range(100):
+            test_indexes, _ = data_structure.create_testing_data(n_samples=n_samples)
+            data_structure.set_na_values(test_indexes)
+            data_structure.multiple_impute_wave(estimator='Forest', max_iter=100,reset=False)
+            random_forest_mses.append(data_structure.estimate_imputation_error(test_indexes))
+            data_structure.reset_imputed()
+        print('mean_mse='+ str(np.mean(random_forest_mses)))
+        print('mean_stderr='+ str(np.std(random_forest_mses)/len(random_forest_mses)))
+            
+
+        print("====Testing for multiple imputation Ridge====")
+        ridge_mses=[]
+        for i in range(100):
+            test_indexes, _ = data_structure.create_testing_data(n_samples=n_samples)            
+            data_structure.set_na_values(test_indexes)
+            data_structure.multiple_impute_wave(estimator='Ridge',max_iter=100,reset=False)
+            ridge_mses.append(data_structure.estimate_imputation_error(test_indexes))
+            data_structure.reset_imputed()
+        print('mean_mse='+ str(np.mean(ridge_mses)))
+        print('mean_stderr='+ str(np.std(ridge_mses)/len(ridge_mses)))
+
+        sys.stdout.close()
         
+    def test_knn_subject_v2(self):
+        df = pd.read_csv('../../output/v3_python/raw2.csv', index_col=0)
+
+        # Focus on just two waves for testing
+        print("========Testing on variables: ")
+        print(without_binaries)
+        
+        data_structure = Structure(df, without_binaries)
+
+        data_structure.knn_impute_subject(k=1)
+
+    def test_number_of_NAs(self):
+        df = pd.read_csv('../../output/v3_python/raw2.csv', index_col=0)
+
+        # Focus on just two waves for testing
+        data_structure = Structure(df, without_binaries)
+        n_nas = np.sum(np.isnan(data_structure.imputed))
+        print(n_nas)
+        m,n,l = data_structure.imputed.shape
+        print(m * n * l)
+        print(n_nas/(m * n * l))

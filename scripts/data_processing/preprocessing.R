@@ -19,7 +19,19 @@ lookup_states <- function(data){
 # Load the source data
 data <- read_csv("data/Wave1-16_paper_release.csv")
 # Use wave 1 data and impute
-data = lookup_states(data)
+data <- lookup_states(data)
+
+# mapping income
+income_recode <- c("1"=1, "2"=1, "3"=1, "4"=2, "5"=3, "6"=4, "7"=5, "8"=6, "9"=7)
+data <- data %>% mutate(Income = ifelse( wave %in% c(2,3,4,5,6), recode(DemW18_R2, !!!income_recode), 
+                                ifelse(wave %in% 7:16, recode(DemW18.2, !!!income_recode),
+                                    DemW18_R1))) %>%
+                 mutate(Income = ifelse(Income == 7, NA, Income))
+
+data <- data %>% mutate(Income_v2 = ifelse(wave %in% c(2,3,4,5,6), DemW18_R2,
+                                    ifelse(wave %in% 7:16, DemW18.2, 
+                                    NA))) %>%
+                 mutate(Income_v2 = ifelse(Income_v2 == 9, NA, Income_v2))
 
 # Load external data
 external_state <- read_csv("data/w1-w16_external_state.csv")
@@ -50,8 +62,8 @@ external_state_encoded$wave <- as.character(external_state_encoded$wave)
 external_county_selected$wave <- as.character(external_county_selected$wave)
 
 ID <- c("CVDID")
-demographics <- c("DemM7", "prlfc_dem_age", "DemC9", "DemC23", "DemC5")
-psychological <- c("BDI_total_raw", "PSS_Total", "STAI_State_raw", "Fear_COVID_raw", "NIH_TB_Emot_Support_raw_total", "NIH_TB_Loneliness_raw_total")
+demographics <- c("DemM7", "prlfc_dem_age", "DemC9", "DemC23", "DemC5", "Income", "Income_v2")
+psychological <- c("BDI_total_raw", "PSS_Total", "STAI_State_raw", "Fear_COVID_raw", "NIH_TB_Emot_Support_raw_total", "NIH_TB_Loneliness_raw_total", "NEO_Neuroticism", "NEO_Extraversion", "NEO_Openness", "NEO_Agreeableness", "NEO_Conscientiousness")
 others <- c("DemW3", "state", 'county', "Mandatory_SAH", "slope_new_cases", "slope_new_deaths", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "lat", 'lng', "population", "rake_weights")
 wave <- c("wave")
 
@@ -72,14 +84,14 @@ core_samples <- data %>%
                     rename(Political_Views=DemM7, Age=prlfc_dem_age, Race=DemC9, Gender=DemC5, Education=DemC23, BDI=BDI_total_raw, PSS=PSS_Total, STAI=STAI_State_raw, Fear=Fear_COVID_raw, Emot_Support=NIH_TB_Emot_Support_raw_total, Loneliness=NIH_TB_Loneliness_raw_total) %>%
                     mutate(Race_AA=as.integer(Race==4), Race_A=as.integer(Race==2), Race_W=as.integer(Race==5), Gender=as.integer(Gender==1), Education=replace(Education, which(Education==10), NA))                 
 
-psych_dem_data <- core_samples %>% select(c("CVDID", "wave", "Race_AA", "Race_A", "Race_W", "Age", "Gender", "Education", "Political_Views", "BDI", "PSS", "STAI", "Fear", "Emot_Support", "Loneliness"))
+psych_dem_data <- core_samples %>% select(c("CVDID", "wave", "Race_AA", "Race_A", "Race_W", "Age", "Income", "Income_v2", "Gender", "Education", "Political_Views", "BDI", "PSS", "STAI", "Fear", "Emot_Support", "Loneliness", "NEO_Neuroticism", "NEO_Extraversion", "NEO_Openness", "NEO_Agreeableness", "NEO_Conscientiousness"))
 
 covid_data <- core_samples %>% select(c("CVDID", "wave", "county", "state", "lat", "lng", "population", "cases_avg", "deaths_avg", "cases_avg_per_100k", "deaths_avg_per_100k", "slope_new_cases", "slope_new_deaths", "Mandatory_SAH"))
 
 write.csv(core_samples, "output/v3_python/core.csv")
 
-# write.csv(psych_dem_data, "output/v3_python/raw2.csv")
-# write.csv(covid_data, "output/v3_python/cvd.csv")
+write.csv(psych_dem_data, "output/v3_python/raw2.csv")
+write.csv(covid_data, "output/v3_python/cvd.csv")
 
 
 # test = core_samples %>% group_by(state) %>% mutate(m_lat=mean(lat, na.rm=TRUE), m_lng=mean(lng, na.rm=TRUE), lat=replace(lat, which(is.na(lat)), first(m_lat)), lng=replace(lng, which(is.na(lng)), first(m_lng)))

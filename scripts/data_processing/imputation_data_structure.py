@@ -12,8 +12,8 @@ from constants import *
 
 
 class Structure:
-    def __init__(self, df, columns):
-        self.ori, self.meta = self.create_data_structure(df, columns)
+    def __init__(self, df, columns, dtype='covid-dynamic'):
+        self.ori, self.meta = self.create_data_structure(df, columns, dtype)
         self.scaled_ori = self.ori.copy()
         self.imputed = self.ori.copy()
         self.is_scaled = False
@@ -22,29 +22,53 @@ class Structure:
         self.impute_method_subject = None
         self.scale_original()
     
-    def create_data_structure(self, df, columns):
+    def create_data_structure(self, df, columns, dtype):
         """
         Create the full data structure for the analysis when initializing the data object
         """
-        waves = np.unique(df["wave"].values)
+
+        if dtype == 'covid-dynamic':
+            waves = np.unique(df["wave"].values)
+            
+            CVDIDs = np.unique(df["CVDID"].values)
+            
+            # create an array to store the numerical values
+            tmp_array = np.empty((df.loc[df['wave']==1,:].shape[0], len(columns), len(waves)))
+            tmp_array[:] = np.nan
+            
+            for i in range(len(CVDIDs)):
+                for j in range(len(columns)):
+                    for w in waves:
+                        tmp = df.loc[(df["wave"]==w) & (df["CVDID"]==CVDIDs[i]), columns[j]]
+                        if len(tmp.values) != 0:
+                            if (~np.isnan(tmp.values[0])) | (~math.isnan(tmp.values[0])):
+                                tmp_array[i, j, w-1] = tmp.values[0]
+                                
+            meta = {'waves': waves,
+                    'CVDIDs': CVDIDs,
+                    'columns': columns}
         
-        CVDIDs = np.unique(df["CVDID"].values)
-        
-        # create an array to store the numerical values
-        tmp_array = np.empty((df.loc[df['wave']==1,:].shape[0], len(columns), len(waves)))
-        tmp_array[:] = np.nan
-        
-        for i in range(len(CVDIDs)):
-            for j in range(len(columns)):
-                for w in waves:
-                    tmp = df.loc[(df["wave"]==w) & (df["CVDID"]==CVDIDs[i]), columns[j]]
-                    if len(tmp.values) != 0:
-                        if (~np.isnan(tmp.values[0])) | (~math.isnan(tmp.values[0])):
-                            tmp_array[i, j, w-1] = tmp.values[0]
-                            
-        meta = {'waves': waves,
-                'CVDIDs': CVDIDs,
-                'columns': columns}
+        elif dtype == 'ucl-social-study':
+            weeks = np.unique(df['weeks'].values)
+
+            record_ids = np.unique(df['record_id'].values)
+
+            # create an array to store to numerical values
+            tmp_array = np.empty([len(record_ids, len(columns), len(weeks))])
+            tmp_array[:] = np.nan
+
+            for i in range(len(record_ids)):
+                for j in range(len(columns)):
+                    for w in weeks:
+                        tmp = df.loc[(df['week']==w) & (df['record_id']==record_ids[i]), columns[j]]
+                        if len(tmp.values) != 0:
+                            if (~np.isnan(tmp.values[0])) | (~math.isnan(tmp.values[0])):
+                                tmp_array[i, j, w-1] = tmp.values[0]
+                                
+            meta = {'wave': weeks,
+                    'CVDIDs': record_ids,
+                    'columns': columns}
+
         
         return tmp_array, meta
     

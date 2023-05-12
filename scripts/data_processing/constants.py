@@ -1,3 +1,56 @@
+# UCL social studies
+UCL_personality = {
+    'Neuroticism': ['pers1',
+                    'pers2',
+                    'pers3'],
+    'Extraversion': ['pers4',
+                    'pers5',
+                    'pers6'],
+    'Openness': ['pers7',
+                'pers8',
+                'pers9'],
+    'Agreeableness': ['pers10',
+                    'pers11',
+                    'pers12'],
+    'Conscientiousness': ['pers13',
+                        'pers14',
+                        'pers15']
+}
+
+UCL_depression = [
+    'phq1',
+    'phq2',
+    'phq3',
+    'phq4',
+    'phq5',
+    'phq6',
+    'phq7',
+    'phq8',
+    'phq9',
+    'phqextra'
+]
+
+UCL_anxiety = [
+    'gad1',
+    'gad2',
+    'gad3',
+    'gad4',
+    'gad5',
+    'gad6',
+    'gad7'
+]
+
+UCL_demographic = [
+    'age',
+    'gender',
+    'marital',
+    'education'
+]
+
+
+## End of UCL social study thing
+
+# Covid study thing
 variable_ranges = {
     'Political_Views': [1, 7],
     'Age': [18, 82],

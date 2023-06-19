@@ -47,14 +47,16 @@ class Structure:
             meta = {'waves': waves,
                     'CVDIDs': CVDIDs,
                     'columns': columns}
+            
+            return tmp_array, meta
         
         elif dtype == 'ucl-social-study':
-            weeks = np.unique(df['weeks'].values)
+            weeks = np.unique(df['week'].astype(int).values)
 
             record_ids = np.unique(df['record_id'].values)
 
             # create an array to store to numerical values
-            tmp_array = np.empty([len(record_ids, len(columns), len(weeks))])
+            tmp_array = np.empty([len(record_ids), len(columns), len(weeks)])
             tmp_array[:] = np.nan
 
             for i in range(len(record_ids)):
@@ -64,13 +66,13 @@ class Structure:
                         if len(tmp.values) != 0:
                             if (~np.isnan(tmp.values[0])) | (~math.isnan(tmp.values[0])):
                                 tmp_array[i, j, w-1] = tmp.values[0]
-                                
-            meta = {'wave': weeks,
+
+            meta = {'waves': weeks,
                     'CVDIDs': record_ids,
                     'columns': columns}
 
         
-        return tmp_array, meta
+            return tmp_array, meta
     
     def scale_original(self):
         
@@ -507,8 +509,16 @@ class Structure:
         self.impute_method_wave = 'knn_k1={}'.format(str(k1))
         self.impute_method_subject = 'knn_k2={}'.format(str(k2))
             
-    def simple_imputation(self, method='mean'):
-        pass
+    def get_targeted_indexes(self, test_indexes, selected_vars):
+        indexes = []
+        for var in selected_vars:
+            indexes.append(self.meta['columns'].index(var))
+
+        selected_indexes = []
+        for idx in test_indexes:
+            if idx[1] in indexes:
+                selected_indexes.append(idx)
+        return selected_indexes
 
         
         

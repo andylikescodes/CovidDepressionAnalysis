@@ -40,11 +40,72 @@ UCL_anxiety = [
     'gad7'
 ]
 
+UCL_covid_anxiety = [
+    'cas1',
+    'cas2',
+    'cas3',
+    'cas4',
+    'cas5'
+]
+
+UCL_stressors = [
+    'stressorsminor1',
+    'stressorsminor2',
+    'stressorsminor3',
+    'stressorsminor4',
+    'stressorsminor5',
+    'stressorsminor6',
+    'stressorsminor7',
+    'stressorsminor8',
+    'stressorsminor9',
+    'stressorsminor10',
+    'stressorsminor11',
+    'stressorsminor12',
+    'stressorsminor13',
+    'stressorsminor14',
+    'stressorsminor15',
+    'stressorsminor16',
+    'stressorsmajor1',
+    'stressorsmajor2',
+    'stressorsmajor3',
+    'stressorsmajor4',
+    'stressorsmajor5',
+    'stressorsmajor6',
+    'stressorsmajor7',
+    'stressorsmajor8',
+    'stressorsmajor9',
+    'stressorsmajor10',
+    'stressorsmajor11',
+    'stressorsmajor12',
+    'stressorsmajor13',
+    'stressorsmajor14',
+    'stressorsmajor15',
+    'stressorsmajor16'
+]
+
+UCL_loneliness = [
+    'soc1',
+    'soc2',
+    'soc3',
+    'soc4'
+]
+
+UCL_support = [
+    'supp1',
+    'supp2',
+    'supp3',
+    'supp4',
+    'supp5',
+    'supp6'
+]
+
 UCL_demographic = [
     'age',
     'gender',
+    'ethnic',
     'marital',
-    'education'
+    'education',
+    'income'
 ]
 
 
